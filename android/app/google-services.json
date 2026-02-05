@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "587401572217",
+    "project_id": "ahmed-debts-store",
+    "storage_bucket": "ahmed-debts-store.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:587401572217:android:8b28470d2c07b6fd5dc9a8",
+        "android_client_info": {
+          "package_name": "com.ghazali.ahmed_debts"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "587401572217-mulr515d1d08e87t6m9lkahp3t0j7qfp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ghazali.ahmed_debts",
+            "certificate_hash": "95b42e7c0037228fc44acc4dca5798b7276a4699"
+          }
+        },
+        {
+          "client_id": "587401572217-hkh63bce7oejhjbiifr264i55vs431la.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCzbpAbeLidAf8-0o9iwEtA75QodYpSZNI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "587401572217-hkh63bce7oejhjbiifr264i55vs431la.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "587401572217-5cg6ovjsu2qskcolb46ccea46iiopghc.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.ghazali.ahmedDebts"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

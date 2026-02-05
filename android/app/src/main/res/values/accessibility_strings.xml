@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">خدمة إرسال رسائل واتساب تلقائياً لتذكير الزبائن بالديون المستحقة. تحتاج هذه الخدمة للوصول لتطبيق واتساب لإرسال الرسائل نيابةً عنك.</string>
+</resources>
