@@ -96,11 +96,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
+    final amount = parseFormattedNumber(_amountController.text);
+    
+    // التحقق من عدم سداد أكثر من المبلغ المطلوب
+    if (_isPayment && amount > _customerBalance) {
+      AppUtils.showError(context, 'لا يمكن سداد أكثر من المبلغ المستحق (${_formatCurrency(_customerBalance)})');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
       final transactionId = const Uuid().v4();
-      final amount = parseFormattedNumber(_amountController.text);
       final transactionType = _isPayment ? TransactionType.payment : TransactionType.debt;
       
       final newTransaction = {
@@ -299,6 +306,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
+      resizeToAvoidBottomInset: false, // لا يتحرك الزر مع الكيبورد
       appBar: AppBar(
         title: Text(title),
         backgroundColor: primaryColor,
@@ -309,8 +317,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           icon: const Icon(Icons.close),
         ),
       ),
-      body: Column(
-        children: [
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
           // Header مع معلومات الزبون
           Container(
             width: double.infinity,
@@ -512,47 +521,59 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               ),
             ),
           ),
-
-          // زر الحفظ
-          Container(
-            padding: const EdgeInsets.all(24),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _saveTransaction,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 0,
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(Colors.white),
-                        ),
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(_isPayment ? Icons.check_circle : Icons.add_circle),
-                          const SizedBox(width: 8),
-                          Text(
-                            _isPayment ? 'تأكيد السداد' : 'إضافة المبلغ',
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-              ),
-            ),
-          ),
+          // مساحة إضافية للزر
+          const SizedBox(height: 100),
         ],
+        ),
+      ),
+      // زر الحفظ - ثابت في الأسفل
+      bottomNavigationBar: Container(
+        padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 16),
+        decoration: BoxDecoration(
+          color: AppColors.backgroundLight,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _isLoading ? null : _saveTransaction,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 0,
+            ),
+            child: _isLoading
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation(Colors.white),
+                    ),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(_isPayment ? Icons.check_circle : Icons.add_circle),
+                      const SizedBox(width: 8),
+                      Text(
+                        _isPayment ? 'تأكيد السداد' : 'إضافة المبلغ',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
       ),
     );
   }

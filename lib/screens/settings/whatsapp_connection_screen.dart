@@ -78,6 +78,48 @@ class _WhatsAppConnectionScreenState extends State<WhatsAppConnectionScreen> {
     }
   }
 
+  Future<void> _resetConnection() async {
+    // إظهار حوار تأكيد
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('إعادة تعيين الربط'),
+        content: const Text('هل أنت متأكد من رغبتك في إلغاء الربط الحالي وإنهاء الجلسة؟\nسيتعين عليك إدخال الرقم والربط مرة أخرى.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('إلغاء'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('نعم، إعادة تعيين', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    
+    // محاولة قطع الاتصال من السيرفر
+    await WhatsAppService().disconnect();
+    
+    setState(() {
+      _isLoading = false;
+      _isConnected = false;
+      _pairingCode = null;
+      _phoneController.clear(); // مسح الرقم المكتوب ليعيد الشخص كتابته
+    });
+    
+    if (mounted) {
+      AppUtils.showSuccess(context, 'تمت إعادة تعيين الجلسة بنجاح');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -86,7 +128,8 @@ class _WhatsAppConnectionScreenState extends State<WhatsAppConnectionScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _checkStatus,
+            onPressed: _resetConnection,
+            tooltip: 'إعادة تعيين الجلسة',
           ),
         ],
       ),
@@ -126,52 +169,77 @@ class _WhatsAppConnectionScreenState extends State<WhatsAppConnectionScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(20),
-        child: Row(
+        child: Column(
           children: [
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _isConnected ? Colors.green.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1),
-              ),
-              child: Icon(
-                _isConnected ? Icons.check_circle : Icons.link_off,
-                size: 32,
-                color: _isConnected ? Colors.green : Colors.red,
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _isConnected ? Colors.green.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1),
+                  ),
+                  child: Icon(
+                    _isConnected ? Icons.check_circle : Icons.link_off,
+                    size: 32,
+                    color: _isConnected ? Colors.green : Colors.red,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _isConnected ? '✅ متصل بواتساب' : '❌ غير متصل',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _isConnected 
+                            ? 'الرسائل سترسل تلقائياً في الخلفية'
+                            : 'اربط حسابك للإرسال التلقائي',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_isLoading)
+                  const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _isConnected ? '✅ متصل بواتساب' : '❌ غير متصل',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+            if (_isConnected) ...[
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _isLoading ? null : _disconnect,
+                  icon: const Icon(Icons.logout, size: 20),
+                  label: const Text('إلغاء الربط (تسجيل الخروج)'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _isConnected 
-                        ? 'الرسائل سترسل تلقائياً في الخلفية'
-                        : 'اربط حسابك للإرسال التلقائي',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-            if (_isLoading)
-              const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
+            ],
           ],
         ),
       ),
@@ -204,7 +272,10 @@ class _WhatsAppConnectionScreenState extends State<WhatsAppConnectionScreen> {
               textDirection: TextDirection.ltr,
               style: const TextStyle(fontSize: 18, letterSpacing: 1),
               decoration: InputDecoration(
-                hintText: '07xxxxxxxxx',
+                hintText: '249123456789',
+                labelText: 'رقم الهاتف مع رمز الدولة',
+                helperText: 'مثال: 249 للسودان، 964 للعراق، 966 للسعودية',
+                helperStyle: TextStyle(color: Colors.grey[600], fontSize: 12),
                 prefixIcon: const Icon(Icons.phone),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -364,26 +435,8 @@ class _WhatsAppConnectionScreenState extends State<WhatsAppConnectionScreen> {
             _buildStep('4', 'الإعدادات ← الأجهزة المرتبطة'),
             _buildStep('5', 'ربط جهاز ← الربط برقم الهاتف'),
             _buildStep('6', 'أدخل الكود الظاهر'),
+            _buildStep('6', 'أدخل الكود الظاهر'),
             const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.orange[100],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.warning, color: Colors.orange, size: 20),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '⚠️ تحذير: هذه الطريقة غير رسمية',
-                      style: TextStyle(fontSize: 12, color: Colors.orange),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),

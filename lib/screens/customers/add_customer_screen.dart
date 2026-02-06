@@ -342,7 +342,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
               const SizedBox(height: 20),
 
               // رقم الهاتف
-              Text('رقم الهاتف', style: Theme.of(context).textTheme.labelLarge),
+              Text('رقم الهاتف (مع رمز الدولة)', style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _phoneController,
@@ -350,7 +350,9 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
                 textInputAction: TextInputAction.next,
                 textDirection: TextDirection.ltr,
                 decoration: InputDecoration(
-                  hintText: '0770 000 0000',
+                  hintText: '249123456789',
+                  helperText: 'مثال: 249 للسودان، 964 للعراق، 966 للسعودية',
+                  helperStyle: TextStyle(color: Colors.grey[600], fontSize: 11),
                   prefixIcon: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

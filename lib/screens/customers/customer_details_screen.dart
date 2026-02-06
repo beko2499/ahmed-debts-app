@@ -206,7 +206,6 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
       body: CustomScrollView(
         slivers: [
           // AppBar
@@ -228,13 +227,14 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                 ],
                 onSelected: (value) async {
                   if (value == 'edit') {
+                    // الانتقال لشاشة التعديل
                     final result = await Navigator.pushNamed(
                       context,
                       AppRoutes.addCustomer,
                       arguments: widget.customerId,
                     );
                     if (result != null) {
-                      _loadData();
+                      _loadData(); // إعادة تحميل البيانات بعد التعديل
                     }
                   } else if (value == 'delete') {
                     _deleteCustomer();
@@ -244,394 +244,158 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
             ],
           ),
 
-          // Hero Card (Profile & Balance)
+          // معلومات الزبون
           SliverToBoxAdapter(
-            child: _buildHeroCard(),
-          ),
-
-          // Quick Actions
-          SliverToBoxAdapter(
-            child: _buildActionButtons(),
-          ),
-
-          // Tabs
-          SliverPersistentHeader(
-            delegate: _SliverAppBarDelegate(
-              minHeight: 60.0,
-              maxHeight: 60.0,
-              child: Container(
-                color: Colors.grey.shade50,
-                child: _buildTabSelector(),
-              ),
-            ),
-            pinned: true,
-          ),
-
-          // Content
-          if (_showInstallments) ...[
-            SliverToBoxAdapter(child: _buildInstallmentsSection()),
-            const SliverToBoxAdapter(child: SizedBox(height: 100)),
-          ]
-          else ...[
-            if (_transactions.isEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(40),
-                  child: Column(
+            child: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  // الصورة
+                  Stack(
                     children: [
-                      Icon(Icons.receipt_long, size: 64, color: Colors.grey.shade300),
-                      const SizedBox(height: 16),
-                      Text('لا توجد معاملات بعد', style: TextStyle(color: Colors.grey.shade500)),
+                      Builder(
+                        builder: (context) {
+                          final imageUrl = _customer['imageUrl']?.toString();
+                          final hasImage = imageUrl != null && 
+                                          imageUrl.isNotEmpty && 
+                                          File(imageUrl).existsSync();
+                          return Container(
+                            width: 112,
+                            height: 112,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.grey.shade200,
+                              border: Border.all(
+                                color: AppColors.backgroundLight,
+                                width: 4,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 20,
+                                ),
+                              ],
+                              image: hasImage
+                                  ? DecorationImage(
+                                      image: FileImage(File(imageUrl)),
+                                      fit: BoxFit.cover,
+                                    )
+                                  : null,
+                            ),
+                            child: !hasImage
+                                ? Icon(
+                                    Icons.person,
+                                    size: 50,
+                                    color: Colors.grey.shade400,
+                                  )
+                                : null,
+                          );
+                        },
+                      ),
+                      Positioned(
+                        bottom: 4,
+                        right: 4,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: AppColors.success,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(
+                            Icons.check,
+                            size: 12,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                ),
-              )
-            else
-              SliverPadding(
-                padding: const EdgeInsets.only(bottom: 100),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) => _buildTransactionTimelineItem(
-                      _transactions[index],
-                      isFirst: index == 0,
-                      isLast: index == _transactions.length - 1,
+
+                  const SizedBox(height: 16),
+
+                  // الاسم
+                  Text(
+                    _customer['name']?.toString() ?? '',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
                     ),
-                    childCount: _transactions.length,
                   ),
-                ),
-              ),
-          ],
-        ],
-      ),
-      
-      // Floating Action Button for Adding Transaction
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddTransactionSheet(),
-        backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.add),
-        label: const Text('إضافة معاملة'),
-      ),
-    );
-  }
 
-  void _showAddTransactionSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'ما هو نوع المعاملة؟',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildTransactionOption(
-                    icon: Icons.shopping_cart,
-                    label: 'دين جديد',
-                    color: AppColors.error,
-                    onTap: () {
-                      Navigator.pop(context);
-                      _navigateToAddTransaction(isPayment: false);
-                    },
+                  // العنوان
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.location_on, size: 16, color: AppColors.textLight),
+                      const SizedBox(width: 4),
+                      Text(
+                        _customer['address']?.toString() ?? 'غير محدد',
+                        style: TextStyle(color: AppColors.textLight),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildTransactionOption(
-                    icon: Icons.payment,
-                    label: 'تسديد',
-                    color: AppColors.success,
-                    onTap: () {
-                      Navigator.pop(context);
-                      _navigateToAddTransaction(isPayment: true);
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildTransactionOption({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 32, color: color),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeroCard() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          const SizedBox(height: 24),
-          // Avatar
-          Stack(
-            alignment: Alignment.bottomRight,
-            children: [
-              Builder(
-                builder: (context) {
-                  final imageUrl = _customer['imageUrl']?.toString();
-                  final hasImage = imageUrl != null && 
-                                  imageUrl.isNotEmpty && 
-                                  File(imageUrl).existsSync();
-                  return Container(
-                    width: 100,
-                    height: 100,
+                  // إجمالي الدين
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.grey.shade100,
-                      border: Border.all(color: Colors.white, width: 4),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 10,
-                        ),
-                      ],
-                      image: hasImage
-                          ? DecorationImage(
-                              image: FileImage(File(imageUrl)),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
+                      color: AppColors.error.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.error.withValues(alpha: 0.2),
+                      ),
                     ),
-                    child: !hasImage
-                        ? Icon(Icons.person, size: 50, color: Colors.grey.shade400)
-                        : null,
-                  );
-                },
-              ),
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.verified, color: AppColors.primary, size: 24),
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // Name & Location
-          Text(
-            _customer['name']?.toString() ?? '',
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.location_on, size: 14, color: Colors.grey.shade500),
-              const SizedBox(width: 4),
-              Text(
-                _customer['address']?.toString() ?? 'العنوان غير محدد',
-                style: TextStyle(color: Colors.grey.shade500),
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 24),
-          Container(
-            height: 1,
-            width: double.infinity,
-            color: Colors.grey.shade100,
-          ),
-          
-          // Balance Section
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                Text(
-                  'الرصيد الحالي',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade500,
-                    fontWeight: FontWeight.w500,
+                    child: Text(
+                      'إجمالي الدين: ${_formatCurrency((_customer['balance'] as num?)?.toDouble() ?? 0)}',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.error,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _formatCurrency((_customer['balance'] as num?)?.toDouble() ?? 0),
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
-                    height: 1,
+
+                  // أزرار الإجراءات
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _makeCall,
+                          icon: Icon(Icons.call, color: AppColors.primary),
+                          label: Text('اتصال', style: TextStyle(color: AppColors.primary)),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _openLocation,
+                          icon: Icon(Icons.map, color: AppColors.primary),
+                          label: Text('الموقع', style: TextStyle(color: AppColors.primary)),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildActionButtons() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      margin: const EdgeInsets.only(bottom: 24),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildQuickAction(
-            icon: Icons.call,
-            label: 'اتصال',
-            color: Colors.blue,
-            onTap: _makeCall,
+          // أزرار التبديل
+          SliverToBoxAdapter(
+            child: _buildToggleTabs(),
           ),
-          _buildQuickAction(
-            icon: Icons.chat,
-            label: 'واتساب',
-            color: Colors.green,
-            onTap: _sendWhatsAppReminder,
-          ),
-          _buildQuickAction(
-            icon: Icons.map,
-            label: 'الموقع',
-            color: Colors.orange,
-            onTap: _openLocation,
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildQuickAction({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Column(
-      children: [
-        InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 28),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey.shade700,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTabSelector() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          _buildTabItem('جدول الدفعات', true),
-          _buildTabItem('سجل المعاملات', false),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabItem(String title, bool isInstallments) {
-    final isSelected = _showInstallments == isInstallments;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _showInstallments = isInstallments),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Text(
-            title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: isSelected ? Colors.white : Colors.grey.shade600,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
           // عرض القسم المحدد
           if (_showInstallments) ...[
             // قسم الدفعات / الأقساط

@@ -38,6 +38,18 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
       filtered = filtered.where((c) => c['status'] == _statusFilter).toList();
     }
     
+    // ترتيب: المتأخرين أولاً، ثم قيد الانتظار، ثم تم السداد
+    filtered.sort((a, b) {
+      const statusPriority = {
+        'overdue': 0,
+        'pending': 1,
+        'paid': 2,
+      };
+      final priorityA = statusPriority[a['status']] ?? 1;
+      final priorityB = statusPriority[b['status']] ?? 1;
+      return priorityA.compareTo(priorityB);
+    });
+    
     return filtered;
   }
 

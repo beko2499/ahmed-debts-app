@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:hive/hive.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../config/constants.dart';
 
 class WhatsAppService {
@@ -12,8 +13,14 @@ class WhatsAppService {
 
   static const MethodChannel _channel = MethodChannel('com.ghazali.ahmed_debts/whatsapp');
   
-  // URL السيرفر المحلي للاختبار
-  static const String _serverUrl = 'http://10.50.55.94:3001';
+  // URL السيرفر (Railway Production)
+  static const String _serverUrl = 'https://ghazali-whatsapp-server-production.up.railway.app';
+
+  /// الحصول على معرف المتجر من Firebase Auth
+  String get _storeId {
+    final user = FirebaseAuth.instance.currentUser;
+    return user?.uid ?? 'default';
+  }
 
   /// تحميل URL السيرفر (للتوافق)
   Future<void> loadServerUrl() async {
@@ -24,7 +31,7 @@ class WhatsAppService {
   Future<Map<String, dynamic>> getStatus() async {
     try {
       final response = await http.get(
-        Uri.parse('$_serverUrl/status'),
+        Uri.parse('$_serverUrl/status/$_storeId'),
       ).timeout(const Duration(seconds: 10));
       
       if (response.statusCode == 200) {
@@ -42,7 +49,10 @@ class WhatsAppService {
       final response = await http.post(
         Uri.parse('$_serverUrl/connect'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'phoneNumber': phoneNumber}),
+        body: json.encode({
+          'storeId': _storeId,
+          'phoneNumber': phoneNumber,
+        }),
       ).timeout(const Duration(seconds: 60));
       
       return json.decode(response.body);
@@ -55,7 +65,7 @@ class WhatsAppService {
   Future<bool> disconnect() async {
     try {
       final response = await http.post(
-        Uri.parse('$_serverUrl/disconnect'),
+        Uri.parse('$_serverUrl/disconnect/$_storeId'),
       ).timeout(const Duration(seconds: 10));
       
       return response.statusCode == 200;
@@ -108,13 +118,14 @@ class WhatsAppService {
       
       final fullMessage = '$message$signature';
 
-      debugPrint('📤 WhatsApp: Calling $_serverUrl/send');
+      debugPrint('📤 WhatsApp: Calling $_serverUrl/send for store $_storeId');
       
       // إرسال عبر السيرفر
       final response = await http.post(
         Uri.parse('$_serverUrl/send'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
+          'storeId': _storeId,
           'phone': phoneNumber,
           'message': fullMessage,
         }),
@@ -161,7 +172,10 @@ class WhatsAppService {
       final response = await http.post(
         Uri.parse('$_serverUrl/send-bulk'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'messages': messagesWithSignature}),
+        body: json.encode({
+          'storeId': _storeId,
+          'messages': messagesWithSignature,
+        }),
       ).timeout(const Duration(minutes: 5));
       
       if (response.statusCode == 200) {
