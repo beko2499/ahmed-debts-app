@@ -1,13 +1,15 @@
+import 'app_config_loader.dart';
+
 /// الثوابت العامة للتطبيق
 class AppConstants {
-  // معلومات التطبيق
-  static const String appName = 'ديون الغزالي';
-  static const String appNameEn = 'Al-Ghazali Debt Manager';
+  // معلومات التطبيق - تُقرأ من app_config.yaml
+  static String get appName => AppConfigLoader.appName;
+  static String get appNameEn => AppConfigLoader.appNameEnglish;
   static const String appVersion = '1.0.0';
   
-  // العملة
-  static const String defaultCurrency = 'IQD';
-  static const String currencySymbol = 'د.ع';
+  // العملة - تُقرأ من app_config.yaml
+  static String get defaultCurrency => AppConfigLoader.currencyCode;
+  static String get currencySymbol => AppConfigLoader.currencySymbol;
   
   // التخزين
   static const String customersBox = 'customers';
@@ -26,28 +28,12 @@ class AppConstants {
   static const String keyPinEnabled = 'pin_enabled';
   static const String keyPinCode = 'pin_code';
   
-  // قوالب رسائل الواتساب
-  static const String defaultReminderTemplate = '''
-مرحباً {اسم_الزبون}،
-نود تذكيركم بأن المبلغ المستحق في ذمتكم هو {المبلغ}.
-يرجى التفضل بالسداد في أقرب وقت ممكن.
-شكراً لتعاملكم مع الغزالي.
-''';
-
-  static const String defaultPaymentConfirmTemplate = '''
-مرحباً {اسم_الزبون}،
-نشكركم على سداد مبلغ {المبلغ}.
-رصيدكم الحالي: {الرصيد_الحالي}.
-شكراً لتعاملكم مع الغزالي.
-''';
-
-  static const String defaultNewDebtTemplate = '''
-مرحباً {اسم_الزبون}،
-تم تسجيل دين جديد بقيمة {المبلغ}.
-إجمالي ذمتكم: {الرصيد_الحالي}.
-الغزالي.
-''';
+  // قوالب رسائل الواتساب - تُقرأ من app_config.yaml
+  static String get defaultReminderTemplate => AppConfigLoader.reminderTemplate;
+  static String get defaultPaymentConfirmTemplate => AppConfigLoader.paymentConfirmationTemplate;
+  static String get defaultNewDebtTemplate => AppConfigLoader.newDebtTemplate;
 }
+
 
 /// تكرار الإرسال
 enum ReminderFrequency {

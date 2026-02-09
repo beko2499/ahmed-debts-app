@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:hive/hive.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../config/constants.dart';
+import '../config/app_config_loader.dart';
 
 class WhatsAppService {
   static final WhatsAppService _instance = WhatsAppService._internal();
@@ -13,8 +14,8 @@ class WhatsAppService {
 
   static const MethodChannel _channel = MethodChannel('com.ghazali.ahmed_debts/whatsapp');
   
-  // URL السيرفر (Railway Production)
-  static const String _serverUrl = 'https://ghazali-whatsapp-server-production.up.railway.app';
+  // URL السيرفر - يُقرأ من app_config.yaml
+  static String get _serverUrl => AppConfigLoader.whatsappServerUrl;
 
   /// الحصول على معرف المتجر من Firebase Auth
   String get _storeId {

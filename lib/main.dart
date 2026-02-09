@@ -9,11 +9,15 @@ import 'firebase_options.dart';
 import 'config/theme.dart';
 import 'config/routes.dart';
 import 'config/constants.dart';
+import 'config/app_config_loader.dart';
 import 'services/database_service.dart';
 import 'services/app_lock_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // ⭐ تحميل الإعدادات من app_config.yaml
+  await AppConfigLoader.load();
   
   // تهيئة Firebase
   await Firebase.initializeApp(

@@ -139,16 +139,28 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         List<double> paidInstallmentAmounts = (customer['paidInstallmentAmounts'] as List<dynamic>?)
             ?.map((e) => (e as num).toDouble()).toList() ?? [];
         
+        // تحميل الأقساط الذكية المحفوظة (من إنشاء الزبون)
+        List<double> smartInstallments = (customer['smartInstallments'] as List<dynamic>?)
+            ?.map((e) => (e as num).toDouble()).toList() ?? [];
+        
         if (_isPayment) {
           // تسديد
           currentBalance -= amount;
           totalPaid += amount;
           
-          // حساب القسط الحالي = الرصيد قبل الدفع / الأقساط المتبقية
+          // استخدام القسط المحفوظ من smartInstallments بدلاً من إعادة الحساب
           final remainingInstallments = installmentMonths - paidInstallmentsCount;
-          final currentMonthlyPayment = remainingInstallments > 0 
-              ? (currentBalance + amount) / remainingInstallments 
-              : amount;
+          double currentMonthlyPayment;
+          
+          if (smartInstallments.isNotEmpty && paidInstallmentsCount < smartInstallments.length) {
+            // استخدام القسط المخطط له من الجدول الأصلي
+            currentMonthlyPayment = smartInstallments[paidInstallmentsCount];
+          } else if (remainingInstallments > 0) {
+            // إذا لم تكن الأقساط محفوظة، نحسبها (للزبائن القدامى)
+            currentMonthlyPayment = (currentBalance + amount) / remainingInstallments;
+          } else {
+            currentMonthlyPayment = amount;
+          }
           
           // إضافة المبلغ للقسط الحالي
           currentInstallmentPaid += amount;
@@ -156,7 +168,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           // التحقق من اكتمال القسط الحالي (مع هامش تسامح للأرقام العشرية)
           const tolerance = 1.0; // هامش 1 دينار للتقريب
           while ((currentInstallmentPaid + tolerance) >= currentMonthlyPayment && paidInstallmentsCount < installmentMonths) {
-            // حفظ قيمة القسط المدفوع
+            // حفظ قيمة القسط الأصلي المخطط وليس المبلغ المدفوع فعلياً
             paidInstallmentAmounts.add(currentMonthlyPayment);
             
             currentInstallmentPaid -= currentMonthlyPayment;
@@ -164,6 +176,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               currentInstallmentPaid = 0; // تصفير القيم السالبة الصغيرة
             }
             paidInstallmentsCount++;
+            
+            // تحديث القسط التالي من الجدول الأصلي
+            if (smartInstallments.isNotEmpty && paidInstallmentsCount < smartInstallments.length) {
+              currentMonthlyPayment = smartInstallments[paidInstallmentsCount];
+            }
           }
           
           // حفظ قائمة الأقساط المدفوعة
@@ -176,8 +193,29 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           final remainingInstallments = installmentMonths - paidInstallmentsCount;
           
           if (remainingInstallments > 0) {
-            // هناك أقساط متبقية - توزيع الدين عليها
+            // هناك أقساط متبقية - توزيع الدين الجديد عليها
             customer['originalDebt'] = currentBalance + totalPaid;
+            
+            // إعادة حساب الأقساط المتبقية لتشمل الدين الجديد
+            const roundingUnit = 250.0;
+            final newOriginalDebt = currentBalance + totalPaid;
+            
+            // إنشاء جدول أقساط جديد كامل
+            if (installmentMonths > 0 && newOriginalDebt > 0) {
+              final basePayment = (newOriginalDebt / installmentMonths / roundingUnit).floor() * roundingUnit;
+              final highPayment = basePayment + roundingUnit;
+              final highPaymentMonths = ((newOriginalDebt - installmentMonths * basePayment) / roundingUnit).round();
+              final lowPaymentMonths = installmentMonths - highPaymentMonths;
+              
+              List<double> newInstallments = [];
+              for (int i = 0; i < lowPaymentMonths; i++) {
+                newInstallments.add(basePayment.toDouble());
+              }
+              for (int i = 0; i < highPaymentMonths; i++) {
+                newInstallments.add(highPayment.toDouble());
+              }
+              customer['smartInstallments'] = newInstallments;
+            }
           } else {
             // تم سداد جميع الأقساط - بدء جدول أقساط جديد
             customer['originalDebt'] = currentBalance;
@@ -187,15 +225,34 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             totalPaid = 0;
             paidInstallmentAmounts = [];
             customer['paidInstallmentAmounts'] = paidInstallmentAmounts;
+            
+            // إنشاء جدول أقساط جديد للمبلغ المضاف
+            // حساب الأقساط الذكية للرصيد الجديد
+            const roundingUnit = 250.0;
+            if (installmentMonths > 0 && currentBalance > 0) {
+              final basePayment = (currentBalance / installmentMonths / roundingUnit).floor() * roundingUnit;
+              final highPayment = basePayment + roundingUnit;
+              final highPaymentMonths = ((currentBalance - installmentMonths * basePayment) / roundingUnit).round();
+              final lowPaymentMonths = installmentMonths - highPaymentMonths;
+              
+              List<double> newInstallments = [];
+              for (int i = 0; i < lowPaymentMonths; i++) {
+                newInstallments.add(basePayment.toDouble());
+              }
+              for (int i = 0; i < highPaymentMonths; i++) {
+                newInstallments.add(highPayment.toDouble());
+              }
+              customer['smartInstallments'] = newInstallments;
+            }
           }
         }
         
         // تحديث حالة الزبون
-        String status = 'paid';
+        String status = 'completed';
         if (currentBalance > 0) {
-          status = 'pending'; // عليه دين
+          status = 'active'; // عليه دين
         } else if (currentBalance < 0) {
-          status = 'credit'; // له رصيد (دفع زيادة)
+          status = 'active'; // له رصيد (دفع زيادة) - نعتبره نشط
         }
         // إذا كان الرصيد = 0، يبقى 'paid'
         

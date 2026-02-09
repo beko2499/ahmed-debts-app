@@ -24,11 +24,41 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
   bool _isLoading = true;
   bool _showInstallments = true; // للتبديل بين جدول الدفعات وسجل المعاملات
   bool _showAllInstallments = false; // لعرض جميع الأقساط
+  
+  // للتحكم بإخفاء/إظهار الأزرار العائمة
+  final ScrollController _scrollController = ScrollController();
+  bool _showActionButtons = true;
+  double _lastScrollPosition = 0;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    // الاستماع لحركة السكرول
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final currentScroll = _scrollController.offset;
+    if (currentScroll > _lastScrollPosition && currentScroll > 50) {
+      // التمرير للأسفل - إخفاء الأزرار
+      if (_showActionButtons) {
+        setState(() => _showActionButtons = false);
+      }
+    } else if (currentScroll < _lastScrollPosition) {
+      // التمرير للأعلى - إظهار الأزرار
+      if (!_showActionButtons) {
+        setState(() => _showActionButtons = true);
+      }
+    }
+    _lastScrollPosition = currentScroll;
   }
 
   void _loadData() {
@@ -69,6 +99,34 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
       _transactions = allTransactions;
       _isLoading = false;
     });
+  }
+
+  // ثابت التقريب (250 دينار)
+  static const int _roundingUnit = 250;
+
+  /// حساب الأقساط الذكية (مقربة لأقرب 250 دينار)
+  List<double> _calculateSmartInstallments(double total, int months) {
+    if (months <= 0 || total <= 0) return [];
+    
+    // القسط الأساسي (مقرب للأسفل)
+    final basePayment = (total / months / _roundingUnit).floor() * _roundingUnit;
+    // القسط الأعلى
+    final highPayment = basePayment + _roundingUnit;
+    
+    // كم شهر يحتاج للقسط الأعلى؟
+    final highPaymentMonths = ((total - months * basePayment) / _roundingUnit).round();
+    final lowPaymentMonths = months - highPaymentMonths;
+    
+    // إنشاء قائمة الأقساط
+    List<double> installments = [];
+    for (int i = 0; i < lowPaymentMonths; i++) {
+      installments.add(basePayment.toDouble());
+    }
+    for (int i = 0; i < highPaymentMonths; i++) {
+      installments.add(highPayment.toDouble());
+    }
+    
+    return installments;
   }
 
   Future<void> _makeCall() async {
@@ -206,326 +264,412 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     }
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          // AppBar
-          SliverAppBar(
-            pinned: true,
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            leading: IconButton(
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.arrow_forward),
-            ),
-            title: Text(_customer['name']?.toString() ?? 'زبون'),
-            actions: [
-              PopupMenuButton(
-                icon: const Icon(Icons.more_vert),
-                itemBuilder: (_) => [
-                  const PopupMenuItem(value: 'edit', child: Text('تعديل')),
-                  const PopupMenuItem(value: 'delete', child: Text('حذف', style: TextStyle(color: Colors.red))),
-                ],
-                onSelected: (value) async {
-                  if (value == 'edit') {
-                    // الانتقال لشاشة التعديل
-                    final result = await Navigator.pushNamed(
-                      context,
-                      AppRoutes.addCustomer,
-                      arguments: widget.customerId,
-                    );
-                    if (result != null) {
-                      _loadData(); // إعادة تحميل البيانات بعد التعديل
-                    }
-                  } else if (value == 'delete') {
-                    _deleteCustomer();
-                  }
-                },
-              ),
-            ],
-          ),
-
-          // معلومات الزبون
-          SliverToBoxAdapter(
-            child: Container(
-              color: Colors.white,
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  // الصورة
-                  Stack(
-                    children: [
-                      Builder(
-                        builder: (context) {
-                          final imageUrl = _customer['imageUrl']?.toString();
-                          final hasImage = imageUrl != null && 
-                                          imageUrl.isNotEmpty && 
-                                          File(imageUrl).existsSync();
-                          return Container(
-                            width: 112,
-                            height: 112,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.grey.shade200,
-                              border: Border.all(
-                                color: AppColors.backgroundLight,
-                                width: 4,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.1),
-                                  blurRadius: 20,
-                                ),
-                              ],
-                              image: hasImage
-                                  ? DecorationImage(
-                                      image: FileImage(File(imageUrl)),
-                                      fit: BoxFit.cover,
-                                    )
-                                  : null,
-                            ),
-                            child: !hasImage
-                                ? Icon(
-                                    Icons.person,
-                                    size: 50,
-                                    color: Colors.grey.shade400,
-                                  )
-                                : null,
-                          );
-                        },
-                      ),
-                      Positioned(
-                        bottom: 4,
-                        right: 4,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: AppColors.success,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: const Icon(
-                            Icons.check,
-                            size: 12,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
+      body: Stack(
+        children: [
+          // المحتوى القابل للتمرير
+          CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              // AppBar
+              SliverAppBar(
+                pinned: true,
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                leading: IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_forward),
+                ),
+                title: Text(_customer['name']?.toString() ?? 'زبون'),
+                actions: [
+                  PopupMenuButton(
+                    icon: const Icon(Icons.more_vert),
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(value: 'edit', child: Text('تعديل')),
+                      const PopupMenuItem(value: 'delete', child: Text('حذف', style: TextStyle(color: Colors.red))),
                     ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // الاسم
-                  Text(
-                    _customer['name']?.toString() ?? '',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  // العنوان
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.location_on, size: 16, color: AppColors.textLight),
-                      const SizedBox(width: 4),
-                      Text(
-                        _customer['address']?.toString() ?? 'غير محدد',
-                        style: TextStyle(color: AppColors.textLight),
-                      ),
-                    ],
-                  ),
-
-                  // إجمالي الدين
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.error.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.error.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    child: Text(
-                      'إجمالي الدين: ${_formatCurrency((_customer['balance'] as num?)?.toDouble() ?? 0)}',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.error,
-                      ),
-                    ),
-                  ),
-
-                  // أزرار الإجراءات
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _makeCall,
-                          icon: Icon(Icons.call, color: AppColors.primary),
-                          label: Text('اتصال', style: TextStyle(color: AppColors.primary)),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _openLocation,
-                          icon: Icon(Icons.map, color: AppColors.primary),
-                          label: Text('الموقع', style: TextStyle(color: AppColors.primary)),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                        ),
-                      ),
-                    ],
+                    onSelected: (value) async {
+                      if (value == 'edit') {
+                        // الانتقال لشاشة التعديل
+                        final result = await Navigator.pushNamed(
+                          context,
+                          AppRoutes.addCustomer,
+                          arguments: widget.customerId,
+                        );
+                        if (result != null) {
+                          _loadData(); // إعادة تحميل البيانات بعد التعديل
+                        }
+                      } else if (value == 'delete') {
+                        _deleteCustomer();
+                      }
+                    },
                   ),
                 ],
               ),
-            ),
-          ),
 
-          // أزرار التبديل
-          SliverToBoxAdapter(
-            child: _buildToggleTabs(),
-          ),
-
-          // عرض القسم المحدد
-          if (_showInstallments) ...[
-            // قسم الدفعات / الأقساط
-            SliverToBoxAdapter(
-              child: _buildInstallmentsSection(),
-            ),
-            // مسافة في الأسفل للأزرار
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 150),
-            ),
-          ]
-          else ...[
-            // Timeline أو حالة فارغة
-            if (_transactions.isEmpty)
+              // معلومات الزبون
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(32, 32, 32, 150),
+                child: Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
-                      Icon(
-                        Icons.receipt_long,
-                        size: 64,
-                        color: AppColors.textLight.withValues(alpha: 0.5),
+                      // الصورة
+                      Stack(
+                        children: [
+                          Builder(
+                            builder: (context) {
+                              final imageUrl = _customer['imageUrl']?.toString();
+                              final hasImage = imageUrl != null && 
+                                              imageUrl.isNotEmpty && 
+                                              File(imageUrl).existsSync();
+                              return Container(
+                                width: 112,
+                                height: 112,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.grey.shade200,
+                                  border: Border.all(
+                                    color: AppColors.backgroundLight,
+                                    width: 4,
+                                  ),
+                                ),
+                                child: hasImage
+                                    ? ClipOval(
+                                        child: Image.file(
+                                          File(imageUrl),
+                                          fit: BoxFit.cover,
+                                        ),
+                                      )
+                                    : Icon(
+                                        Icons.person,
+                                        size: 64,
+                                        color: Colors.grey.shade400,
+                                      ),
+                              );
+                            },
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: (_customer['status'] == 'active' || _customer['status'] == 'pending') 
+                                    ? Colors.green 
+                                    : ((_customer['status'] == 'completed' || _customer['status'] == 'paid') ? Colors.blue : Colors.red),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                                child: Icon(
+                                  (_customer['status'] == 'active' || _customer['status'] == 'pending') 
+                                      ? Icons.check 
+                                      : ((_customer['status'] == 'completed' || _customer['status'] == 'paid') ? Icons.done_all : Icons.warning_amber),
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
+                      // الاسم
                       Text(
-                        'لا توجد معاملات حتى الآن',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: AppColors.textLight,
+                        _customer['name']?.toString() ?? 'بدون اسم',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
                         ),
+                      ),
+                      // العنوان
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.location_on, size: 16, color: AppColors.textLight),
+                          const SizedBox(width: 4),
+                          Text(
+                            _customer['address']?.toString() ?? 'غير محدد',
+                            style: TextStyle(color: AppColors.textLight),
+                          ),
+                        ],
+                      ),
+
+                      // إجمالي الدين
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.error.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: Text(
+                          'إجمالي الدين: ${_formatCurrency((_customer['balance'] as num?)?.toDouble() ?? 0)}',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ),
+
+                      // معلومات التكلفة والربح (تظهر فقط إذا كانت موجودة)
+                      if ((_customer['costPrice'] as num?)?.toDouble() != null && 
+                          (_customer['costPrice'] as num).toDouble() > 0) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.gold.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.gold.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.shopping_cart, size: 16, color: Colors.grey),
+                                      const SizedBox(width: 6),
+                                      Text('سعر المادة:', style: TextStyle(color: AppColors.textLight)),
+                                    ],
+                                  ),
+                                  Text(
+                                    _formatCurrency((_customer['costPrice'] as num?)?.toDouble() ?? 0),
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.sell, size: 16, color: AppColors.gold),
+                                      const SizedBox(width: 6),
+                                      Text('سعر التقسيط:', style: TextStyle(color: AppColors.textLight)),
+                                    ],
+                                  ),
+                                  Text(
+                                    _formatCurrency((_customer['sellingPrice'] as num?)?.toDouble() ?? 0),
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 16),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.trending_up, size: 16, color: AppColors.success),
+                                      const SizedBox(width: 6),
+                                      Text('الربح المتوقع:', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w600)),
+                                    ],
+                                  ),
+                                  Text(
+                                    _formatCurrency(
+                                      ((_customer['sellingPrice'] as num?)?.toDouble() ?? 0), // الربح هو سعر التقسيط نفسه حسب الطلب
+                                    ),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.success,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      // أزرار الإجراءات
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _makeCall,
+                              icon: Icon(Icons.call, color: AppColors.primary),
+                              label: Text('اتصال', style: TextStyle(color: AppColors.primary)),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _openLocation,
+                              icon: Icon(Icons.map, color: AppColors.primary),
+                              label: Text('الموقع', style: TextStyle(color: AppColors.primary)),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-              )
-            else
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 180),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) => _buildTransactionTimelineItem(
-                      _transactions[index],
-                      isFirst: index == 0,
-                      isLast: index == _transactions.length - 1,
-                    ),
-                    childCount: _transactions.length,
-                  ),
-                ),
               ),
-          ],
-        ],
-      ),
 
-      // زر الواتساب
-      bottomSheet: Container(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        decoration: BoxDecoration(
-          color: AppColors.backgroundLight,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // زرين: سداد وزيادة المبلغ
-              Row(
-                children: [
-                  // زر سداد
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _navigateToAddTransaction(isPayment: true),
-                      icon: const Icon(Icons.payment, size: 20),
-                      label: const Text('سداد'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.success,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // زر زيادة المبلغ
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _navigateToAddTransaction(isPayment: false),
-                      icon: const Icon(Icons.add_circle, size: 20),
-                      label: const Text('زيادة المبلغ'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.error,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              // أزرار التبديل
+              SliverToBoxAdapter(
+                child: _buildToggleTabs(),
               ),
-              const SizedBox(height: 8),
-              // زر واتساب
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _sendWhatsAppReminder,
-                  icon: const Icon(Icons.chat, size: 18),
-                  label: const Text('إرسال تذكير عبر واتساب'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF25D366),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    side: const BorderSide(color: Color(0xFF25D366)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+
+              // عرض القسم المحدد
+              if (_showInstallments) ...[
+                // قسم الدفعات / الأقساط
+                SliverToBoxAdapter(
+                  child: _buildInstallmentsSection(),
                 ),
-              ),
+                // مسافة في الأسفل للأزرار
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 150),
+                ),
+              ]
+              else ...[
+                // Timeline أو حالة فارغة
+                if (_transactions.isEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(32, 32, 32, 150),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.receipt_long,
+                            size: 64,
+                            color: Colors.grey.shade300,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'لا توجد سجلات بعد',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey.shade500,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 150),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => _buildTransactionTimelineItem(
+                          _transactions[index],
+                          isFirst: index == 0,
+                          isLast: index == _transactions.length - 1,
+                        ),
+                        childCount: _transactions.length,
+                      ),
+                    ),
+                  ),
+              ],
             ],
           ),
-        ),
+
+          // الأزرار العائمة المتحركة
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: AnimatedSlide(
+              duration: const Duration(milliseconds: 300),
+              offset: _showActionButtons ? Offset.zero : const Offset(0, 1),
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 200),
+                opacity: _showActionButtons ? 1.0 : 0.0,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  color: Colors.transparent,
+                  child: SafeArea(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // زرين: سداد وزيادة المبلغ
+                        Row(
+                          children: [
+                            // زر سداد
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () => _navigateToAddTransaction(isPayment: true),
+                                icon: const Icon(Icons.payment, size: 20),
+                                label: const Text('سداد'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.success,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  elevation: 4,
+                                  shadowColor: AppColors.success.withValues(alpha: 0.5),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // زر زيادة المبلغ
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () => _navigateToAddTransaction(isPayment: false),
+                                icon: const Icon(Icons.add_circle, size: 20),
+                                label: const Text('زيادة المبلغ'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.error,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  elevation: 4,
+                                  shadowColor: AppColors.error.withValues(alpha: 0.5),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        // زر واتساب
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _sendWhatsAppReminder,
+                            icon: const Icon(Icons.chat, size: 18),
+                            label: const Text('إرسال تذكير عبر واتساب'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF25D366),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              elevation: 4,
+                              shadowColor: const Color(0xFF25D366).withValues(alpha: 0.5),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -636,10 +780,20 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     // الدين الأصلي (عند إنشاء الحساب)
     final originalDebt = (_customer['originalDebt'] as num?)?.toDouble() ?? (currentBalance + totalPaid);
     
-    // قسط الأشهر المتبقية = الرصيد الحالي ÷ الأقساط المتبقية (يتغير عند إضافة دين)
-    final futureMonthlyPayment = remainingInstallments > 0 
-        ? currentBalance / remainingInstallments 
-        : currentBalance;
+    // تحميل الأقساط الذكية أو حسابها
+    List<double> smartInstallments = (_customer['smartInstallments'] as List<dynamic>?)
+        ?.map((e) => (e as num).toDouble()).toList() ?? [];
+    
+    // إذا لم تكن موجودة، نحسبها بناءً على الدين الأصلي وعدد الأشهر الكلي
+    // هذا يضمن الحفاظ على جدول الأقساط الأصلي حتى بعد الدفعات
+    if (smartInstallments.isEmpty && installmentMonths > 0) {
+      smartInstallments = _calculateSmartInstallments(originalDebt, installmentMonths);
+    }
+    
+    // القسط الشهري للعرض (الأول من الأقساط الذكية المتبقية)
+    final futureMonthlyPayment = smartInstallments.isNotEmpty 
+        ? smartInstallments[paidInstallmentsCount < smartInstallments.length ? paidInstallmentsCount : 0]
+        : (remainingInstallments > 0 ? currentBalance / remainingInstallments : currentBalance);
     
     // تاريخ بدء الأقساط
     final startDateStr = _customer['installmentStartDate']?.toString();
@@ -748,41 +902,52 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
               IconData statusIcon;
               
               if (index < paidInstallmentsCount) {
-                // قسط مدفوع بالكامل - يظهر بالقيمة التي دُفعت فعلاً
+                // قسط مدفوع بالكامل - يظهر بالقيمة المخططة من smartInstallments
                 status = 'تم السداد ✓';
-                // استخدام القيمة الفعلية من القائمة إن وجدت
-                final actualAmount = index < paidInstallmentAmounts.length 
-                    ? paidInstallmentAmounts[index]
-                    : originalDebt / installmentMonths;
+                // استخدام القيمة الأصلية من smartInstallments أولاً، ثم من paidInstallmentAmounts
+                double actualAmount;
+                if (smartInstallments.isNotEmpty && index < smartInstallments.length) {
+                  actualAmount = smartInstallments[index];
+                } else if (index < paidInstallmentAmounts.length) {
+                  actualAmount = paidInstallmentAmounts[index];
+                } else {
+                  actualAmount = originalDebt / installmentMonths;
+                }
                 amountDisplay = _formatCurrency(actualAmount);
                 statusColor = AppColors.success;
                 bgColor = Colors.green.shade50;
                 statusIcon = Icons.check_circle;
               } else if (index == paidInstallmentsCount) {
-                // القسط الحالي
-                final remaining = futureMonthlyPayment - currentInstallmentPaid;
+                // القسط الحالي - استخدام قيمة السمارت للمؤشر الحالي
+                final currentSmartAmount = index < smartInstallments.length 
+                    ? smartInstallments[index] 
+                    : futureMonthlyPayment;
+                final remaining = currentSmartAmount - currentInstallmentPaid;
                 if (currentInstallmentPaid > 0) {
                   status = 'متبقي ${_formatCurrency(remaining)}';
-                  amountDisplay = '${_formatCurrency(currentInstallmentPaid)} / ${_formatCurrency(futureMonthlyPayment)}';
+                  amountDisplay = '${_formatCurrency(currentInstallmentPaid)} / ${_formatCurrency(currentSmartAmount)}';
                   statusColor = Colors.orange;
                   bgColor = Colors.orange.shade50;
                   statusIcon = Icons.hourglass_top;
                 } else if (dueDate.isBefore(now)) {
                   status = 'متأخر - غير مدفوع';
-                  amountDisplay = _formatCurrency(futureMonthlyPayment);
+                  amountDisplay = _formatCurrency(currentSmartAmount);
                   statusColor = AppColors.error;
                   bgColor = Colors.red.shade50;
                   statusIcon = Icons.warning;
                 } else {
                   status = 'القسط الحالي';
-                  amountDisplay = _formatCurrency(futureMonthlyPayment);
+                  amountDisplay = _formatCurrency(currentSmartAmount);
                   statusColor = AppColors.primary;
                   bgColor = Colors.blue.shade50;
                   statusIcon = Icons.schedule;
                 }
               } else {
-                // قسط قادم - يظهر بالقيمة الجديدة
-                amountDisplay = _formatCurrency(futureMonthlyPayment);
+                // قسط قادم - استخدام قيمة السمارت للمؤشر
+                final futureSmartAmount = index < smartInstallments.length 
+                    ? smartInstallments[index] 
+                    : futureMonthlyPayment;
+                amountDisplay = _formatCurrency(futureSmartAmount);
                 if (dueDate.isBefore(now)) {
                   status = 'متأخر - غير مدفوع';
                   statusColor = AppColors.error;

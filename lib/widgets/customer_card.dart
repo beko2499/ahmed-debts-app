@@ -135,10 +135,12 @@ class CustomerCard extends StatelessWidget {
 
   Color get _statusColor {
     switch (status) {
-      case 'paid':
-        return AppColors.success;
+      case 'active':
       case 'pending':
-        return AppColors.warning;
+        return AppColors.success; // أخضر - زبون نشط (عليه دين)
+      case 'completed':
+      case 'paid':
+        return Colors.blue; // أزرق - خالص (لا يوجد دين)
       case 'overdue':
         return AppColors.error;
       case 'credit':
@@ -150,14 +152,16 @@ class CustomerCard extends StatelessWidget {
 
   IconData get _statusIcon {
     switch (status) {
-      case 'paid':
-        return Icons.check_circle;
+      case 'active':
       case 'pending':
-        return Icons.schedule;
+        return Icons.check_circle;
+      case 'completed':
+      case 'paid':
+        return Icons.done_all;
       case 'overdue':
         return Icons.warning;
       case 'credit':
-        return Icons.account_balance_wallet; // له رصيد
+        return Icons.account_balance_wallet;
       default:
         return Icons.help;
     }
@@ -165,10 +169,12 @@ class CustomerCard extends StatelessWidget {
 
   String get _statusLabel {
     switch (status) {
-      case 'paid':
-        return 'مسدد';
+      case 'active':
       case 'pending':
-        return 'قيد الانتظار';
+        return 'نشط';
+      case 'completed':
+      case 'paid':
+        return 'خالص';
       case 'overdue':
         return 'متأخر';
       case 'credit':

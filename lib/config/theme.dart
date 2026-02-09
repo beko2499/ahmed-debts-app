@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'app_config_loader.dart';
 
-/// ألوان التطبيق المستخرجة من التصميم
+/// ألوان التطبيق - تُقرأ من app_config.yaml
 class AppColors {
-  // الألوان الأساسية
-  static const Color primary = Color(0xFF0F3BBD);
+  // الألوان الأساسية - من ملف الإعدادات
+  static Color get primary => Color(AppConfigLoader.primaryColor);
   static const Color primaryDark = Color(0xFF0A2A8F);
-  static const Color gold = Color(0xFFD4AF37);
+  static Color get gold => Color(AppConfigLoader.goldColor);
   
   // خلفيات
   static const Color backgroundLight = Color(0xFFF6F6F8);
@@ -19,14 +20,15 @@ class AppColors {
   static const Color textSecondary = Color(0xFF4E5D78);
   static const Color textLight = Color(0xFF94A3B8);
   
-  // الحالات
-  static const Color success = Color(0xFF22C55E);
-  static const Color warning = Color(0xFFEAB308);
-  static const Color error = Color(0xFFEF4444);
+  // الحالات - من ملف الإعدادات
+  static Color get success => Color(AppConfigLoader.successColor);
+  static Color get warning => Color(AppConfigLoader.warningColor);
+  static Color get error => Color(AppConfigLoader.errorColor);
   
-  // واتساب
-  static const Color whatsapp = Color(0xFF25D366);
+  // واتساب - من ملف الإعدادات
+  static Color get whatsapp => Color(AppConfigLoader.whatsappColor);
 }
+
 
 /// دوال مساعدة للتطبيق
 class AppUtils {

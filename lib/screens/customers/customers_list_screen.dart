@@ -35,18 +35,26 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
     
     // فلترة حسب الحالة
     if (_statusFilter != 'all') {
-      filtered = filtered.where((c) => c['status'] == _statusFilter).toList();
+      if (_statusFilter == 'active') {
+        filtered = filtered.where((c) => c['status'] == 'active' || c['status'] == 'pending').toList();
+      } else if (_statusFilter == 'completed') {
+        filtered = filtered.where((c) => c['status'] == 'completed' || c['status'] == 'paid').toList();
+      } else {
+        filtered = filtered.where((c) => c['status'] == _statusFilter).toList();
+      }
     }
     
-    // ترتيب: المتأخرين أولاً، ثم قيد الانتظار، ثم تم السداد
+    // ترتيب: المتأخرين أولاً، ثم النشطين، ثم المكتملين
     filtered.sort((a, b) {
       const statusPriority = {
         'overdue': 0,
+        'active': 1,
         'pending': 1,
+        'completed': 2,
         'paid': 2,
       };
-      final priorityA = statusPriority[a['status']] ?? 1;
-      final priorityB = statusPriority[b['status']] ?? 1;
+      final priorityA = statusPriority[a['status']] ?? 3;
+      final priorityB = statusPriority[b['status']] ?? 3;
       return priorityA.compareTo(priorityB);
     });
     
@@ -134,8 +142,8 @@ class _CustomersListScreenState extends State<CustomersListScreen> {
             ),
             const SizedBox(height: 16),
             _buildFilterOption('الكل', 'all', Icons.people),
-            _buildFilterOption('عليهم ديون', 'pending', Icons.hourglass_empty, color: Colors.orange),
-            _buildFilterOption('تم السداد', 'paid', Icons.check_circle, color: AppColors.success),
+            _buildFilterOption('عليهم ديون (نشط)', 'active', Icons.check_circle, color: AppColors.success),
+            _buildFilterOption('تم السداد (خالص)', 'completed', Icons.done_all, color: Colors.blue),
             _buildFilterOption('متأخرون', 'overdue', Icons.warning, color: AppColors.error),
             const SizedBox(height: 16),
           ],

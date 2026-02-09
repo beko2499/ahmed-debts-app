@@ -25,6 +25,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   
   // البيانات الفعلية (سيتم تحميلها من قاعدة البيانات)
   double _totalDebt = 0;
+  double _totalCostPrice = 0; // مجموع سعر المواد
+  double _totalProfit = 0; // مجموع الأرباح
   int _customerCount = 0;
   List<Map<String, dynamic>> _recentTransactions = [];
 
@@ -56,11 +58,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final customers = customersBox.values.toList();
     
     double totalDebt = 0;
+    double totalCostPrice = 0;
+    double totalProfit = 0;
+    
     for (var customer in customers) {
       final balance = (customer['balance'] as num?)?.toDouble() ?? 0;
       if (balance > 0) {
         totalDebt += balance;
       }
+      
+      // حساب سعر المادة والربح
+      final costPrice = (customer['costPrice'] as num?)?.toDouble() ?? 0;
+      final sellingPrice = (customer['sellingPrice'] as num?)?.toDouble() ?? 0;
+      totalCostPrice += costPrice;
+      totalProfit += sellingPrice; // الربح = سعر التقسيط (الفرق بين سعر البيع وسعر المادة)
     }
     
     // تحميل آخر الحركات
@@ -98,6 +109,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() {
       _customerCount = customers.length;
       _totalDebt = totalDebt;
+      _totalCostPrice = totalCostPrice;
+      _totalProfit = totalProfit;
       _recentTransactions = recentTxs;
     });
   }
@@ -528,9 +541,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildSplitStatsCard() {
-    
     return Container(
-      height: 120,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -542,92 +553,185 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          // الجهة اليمنى - الديون لنا
-          Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _currentIndex = 1),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.account_balance_wallet,
-                      color: AppColors.primary,
-                      size: 28,
+          // الصف الأول
+          Row(
+            children: [
+              // الديون لنا
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _currentIndex = 1),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.account_balance_wallet,
+                          color: AppColors.primary,
+                          size: 24,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'الديون لنا',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textLight,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatCurrency(_totalDebt),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'الديون لنا',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textLight,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _formatCurrency(_totalDebt),
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              
+              // الخط الفاصل العمودي
+              Container(
+                width: 1,
+                height: 70,
+                color: Colors.grey.withValues(alpha: 0.2),
+              ),
+              
+              // عدد الزبائن
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _currentIndex = 1),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.groups,
+                          color: AppColors.gold,
+                          size: 24,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'الزبائن',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textLight,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '$_customerCount',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.gold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
           
-          // الخط الفاصل
+          // الخط الفاصل الأفقي
           Container(
-            width: 1,
-            height: 80,
-            color: Colors.grey.withValues(alpha: 0.3),
+            height: 1,
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            color: Colors.grey.withValues(alpha: 0.2),
           ),
           
-          // الجهة اليسرى - عدد الزبائن
-          Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _currentIndex = 1),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.groups,
-                      color: AppColors.gold,
-                      size: 28,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'الزبائن',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textLight,
+          // الصف الثاني
+          Row(
+            children: [
+              // مجموع الديون (سعر المواد)
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.inventory_2,
+                        color: Colors.teal,
+                        size: 24,
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$_customerCount',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.gold,
+                      const SizedBox(height: 6),
+                      Text(
+                        'مجموع الديون',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textLight,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatCurrency(_totalCostPrice),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.teal,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+              
+              // الخط الفاصل العمودي
+              Container(
+                width: 1,
+                height: 70,
+                color: Colors.grey.withValues(alpha: 0.2),
+              ),
+              
+              // مجموع الأرباح
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.trending_up,
+                        color: AppColors.success,
+                        size: 24,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'مجموع الأرباح',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textLight,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatCurrency(_totalProfit),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.success,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+
 
   Widget _buildCustomersCard() {
     return GestureDetector(
