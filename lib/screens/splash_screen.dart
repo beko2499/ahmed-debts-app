@@ -69,7 +69,7 @@ class _SplashScreenState extends State<SplashScreen>
     final ownerName = settingsBox.get(AppConstants.keyOwnerName);
     
     if (isFirstLaunch || ownerName == null) {
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
+      Navigator.pushReplacementNamed(context, AppRoutes.setup);
     } else {
       Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
     }

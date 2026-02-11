@@ -15,10 +15,6 @@ dependencies:
   
   cupertino_icons: ^1.0.8
   
-  # Firebase (will configure later)
-  firebase_core: ^2.24.2
-  firebase_auth: ^4.16.0
-  cloud_firestore: ^4.14.0
   
   # Google Sign-In & Drive
   google_sign_in: ^6.2.1

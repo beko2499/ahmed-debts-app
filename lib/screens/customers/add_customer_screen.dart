@@ -369,6 +369,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
             totalAmount: balance,
             firstPayment: 0,
             remainingAmount: balance,
+            remainingMonths: _installmentMonths,
           );
         } catch (e) {
           debugPrint('Error sending WhatsApp: $e');

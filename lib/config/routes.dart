@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../screens/splash_screen.dart';
-import '../screens/auth/login_screen.dart';
+
 import '../screens/auth/setup_screen.dart';
 import '../screens/home/dashboard_screen.dart';
 import '../screens/customers/customers_list_screen.dart';
@@ -33,7 +33,7 @@ class AppRoutes {
 
   static Map<String, WidgetBuilder> get routes => {
     splash: (_) => const SplashScreen(),
-    login: (_) => const LoginScreen(),
+
     setup: (_) => const SetupScreen(),
     dashboard: (_) => const DashboardScreen(),
     customers: (_) => const CustomersListScreen(),

@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:hive/hive.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
 import '../config/constants.dart';
 import '../config/app_config_loader.dart';
 
@@ -17,10 +17,15 @@ class WhatsAppService {
   // URL السيرفر - يُقرأ من app_config.yaml
   static String get _serverUrl => AppConfigLoader.whatsappServerUrl;
 
-  /// الحصول على معرف المتجر من Firebase Auth
+  /// الحصول على معرف المتجر من Hive
   String get _storeId {
-    final user = FirebaseAuth.instance.currentUser;
-    return user?.uid ?? 'default';
+    try {
+      final box = Hive.box(AppConstants.settingsBox);
+      final ownerName = box.get(AppConstants.keyOwnerName, defaultValue: 'default');
+      return ownerName.toString().isNotEmpty ? ownerName.toString() : 'default';
+    } catch (e) {
+      return 'default';
+    }
   }
 
   /// تحميل URL السيرفر (للتوافق)
@@ -200,6 +205,7 @@ class WhatsAppService {
     required double totalAmount,
     required double firstPayment,
     required double remainingAmount,
+    int remainingMonths = 0,
   }) async {
     final box = await Hive.openBox(AppConstants.settingsBox);
     String template = box.get('notification_new_customer_template', 
@@ -219,6 +225,7 @@ class WhatsAppService {
       '{المبلغ_الكلي}': _formatCurrency(totalAmount),
       '{الدفعة_الأولى}': _formatCurrency(firstPayment),
       '{المتبقي}': _formatCurrency(remainingAmount),
+      '{الاشهر_المتبقية}': '$remainingMonths',
     });
 
     return sendMessage(phoneNumber: phoneNumber, message: message);
@@ -232,6 +239,7 @@ class WhatsAppService {
     required double paidToday,
     required double remainingAmount,
     DateTime? paymentDate,
+    int remainingMonths = 0,
   }) async {
     final box = await Hive.openBox(AppConstants.settingsBox);
     String template = box.get('notification_payment_template', 
@@ -252,6 +260,7 @@ class WhatsAppService {
       '{الدفعة_الحالية}': _formatCurrency(paidToday),
       '{المتبقي}': _formatCurrency(remainingAmount),
       '{التاريخ}': _formatDate(paymentDate ?? DateTime.now()),
+      '{الاشهر_المتبقية}': '$remainingMonths',
     });
 
     return sendMessage(phoneNumber: phoneNumber, message: message);
@@ -262,6 +271,7 @@ class WhatsAppService {
     required String phoneNumber,
     required String customerName,
     required double dueAmount,
+    int remainingMonths = 0,
   }) async {
     final box = await Hive.openBox(AppConstants.settingsBox);
     String template = box.get('notification_monthly_reminder_template', 
@@ -274,6 +284,7 @@ class WhatsAppService {
     final message = _processTemplate(template, {
       '{اسم_الزبون}': customerName,
       '{المبلغ_المستحق}': _formatCurrency(dueAmount),
+      '{الاشهر_المتبقية}': '$remainingMonths',
     });
 
     return sendMessage(phoneNumber: phoneNumber, message: message);

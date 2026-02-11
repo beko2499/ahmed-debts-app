@@ -1,11 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../config/constants.dart';
 import '../../services/whatsapp_service.dart';
+import '../../services/backup_service.dart';
+import '../../utils/currency_input_formatter.dart';
 
 /// شاشة تفاصيل حساب الزبون
 class CustomerDetailsScreen extends StatefulWidget {
@@ -174,11 +177,15 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
 
     final name = _customer['name']?.toString() ?? 'الزبون';
     final balance = (_customer['balance'] as num?)?.toDouble() ?? 0;
+    final installmentMonths = (_customer['installmentMonths'] as num?)?.toInt() ?? 12;
+    final paidCount = (_customer['paidInstallmentsCount'] as num?)?.toInt() ?? 0;
+    final remainingMonths = installmentMonths - paidCount;
 
     final success = await WhatsAppService().sendMonthlyReminder(
       phoneNumber: phone,
       customerName: name,
       dueAmount: balance,
+      remainingMonths: remainingMonths > 0 ? remainingMonths : 0,
     );
 
     if (mounted) {
@@ -1279,12 +1286,14 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
       icon = Icons.shopping_cart;
     }
 
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Timeline
-          SizedBox(
+    return GestureDetector(
+    onLongPress: isOpening ? null : () => _showTransactionOptions(transaction),
+    child: IntrinsicHeight(
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Timeline
+        SizedBox(
             width: 40,
             child: Column(
               children: [
@@ -1373,7 +1382,269 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
           ),
         ],
       ),
+    ),
     );
+  }
+
+  /// عرض خيارات المعاملة (تعديل / حذف)
+  void _showTransactionOptions(Map<String, dynamic> transaction) {
+    final type = transaction['type']?.toString() ?? 'debt';
+    final isPayment = type == 'payment';
+    final isOpening = type == 'opening';
+    
+    // لا نسمح بتعديل الرصيد الافتتاحي
+    if (isOpening) return;
+    
+    final amount = (transaction['amount'] as num?)?.toDouble() ?? 0;
+    
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // مؤشر السحب
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // عنوان
+            Text(
+              isPayment ? 'خيارات السداد' : 'خيارات الدين',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'المبلغ: ${_formatCurrency(amount)}',
+              style: TextStyle(color: AppColors.textLight),
+            ),
+            const SizedBox(height: 24),
+            // زر التعديل
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.edit, color: AppColors.primary),
+              ),
+              title: const Text('تعديل المبلغ', style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text('تغيير المبلغ أو الملاحظات'),
+              trailing: const Icon(Icons.chevron_left),
+              onTap: () {
+                Navigator.pop(context);
+                _editTransaction(transaction);
+              },
+            ),
+            const Divider(),
+            // زر الحذف
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.delete, color: AppColors.error),
+              ),
+              title: Text('حذف المعاملة', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
+              subtitle: const Text('سيتم إرجاع الرصيد تلقائياً'),
+              trailing: const Icon(Icons.chevron_left),
+              onTap: () {
+                Navigator.pop(context);
+                _deleteTransaction(transaction);
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// تعديل معاملة
+  void _editTransaction(Map<String, dynamic> transaction) {
+    final type = transaction['type']?.toString() ?? 'debt';
+    final isPayment = type == 'payment';
+    final oldAmount = (transaction['amount'] as num?)?.toDouble() ?? 0;
+    final amountController = TextEditingController(text: oldAmount.toStringAsFixed(0));
+    final notesController = TextEditingController(text: transaction['notes']?.toString() ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isPayment ? 'تعديل السداد' : 'تعديل الدين'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // حقل المبلغ
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                ThousandsSeparatorInputFormatter(),
+              ],
+              decoration: InputDecoration(
+                labelText: 'المبلغ',
+                suffixText: 'د.ع',
+                prefixIcon: Icon(Icons.attach_money, color: isPayment ? AppColors.success : AppColors.error),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // حقل الملاحظات
+            TextField(
+              controller: notesController,
+              decoration: const InputDecoration(
+                labelText: 'ملاحظات (اختياري)',
+                prefixIcon: Icon(Icons.note),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newAmount = parseFormattedNumber(amountController.text);
+              if (newAmount <= 0) {
+                AppUtils.showError(context, 'أدخل مبلغ صحيح');
+                return;
+              }
+
+              final transactionId = transaction['id']?.toString();
+              if (transactionId == null) return;
+
+              // حساب الفرق
+              final difference = newAmount - oldAmount;
+
+              // تحديث المعاملة في Hive
+              final transactionsBox = Hive.box(AppConstants.transactionsBox);
+              final updatedTransaction = Map<String, dynamic>.from(transaction);
+              updatedTransaction['amount'] = newAmount;
+              updatedTransaction['notes'] = notesController.text.trim();
+              await transactionsBox.put(transactionId, updatedTransaction);
+
+              // تحديث رصيد الزبون
+              final customersBox = Hive.box(AppConstants.customersBox);
+              final customerData = customersBox.get(widget.customerId);
+              if (customerData != null) {
+                final customer = Map<String, dynamic>.from(customerData);
+                double balance = (customer['balance'] as num?)?.toDouble() ?? 0;
+                double totalPaid = (customer['totalPaid'] as num?)?.toDouble() ?? 0;
+
+                if (isPayment) {
+                  // سداد: الفرق ينقص من الرصيد
+                  balance -= difference;
+                  totalPaid += difference;
+                } else {
+                  // دين: الفرق يزيد الرصيد
+                  balance += difference;
+                }
+
+                customer['balance'] = balance;
+                customer['totalPaid'] = totalPaid;
+                customer['status'] = balance > 0 ? 'active' : (balance == 0 ? 'completed' : 'active');
+                await customersBox.put(widget.customerId, customer);
+              }
+
+              BackupService.autoBackup();
+
+              if (mounted) {
+                Navigator.pop(context);
+                _loadData();
+                AppUtils.showSuccess(context, 'تم تعديل المعاملة بنجاح');
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('حفظ', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// حذف معاملة
+  void _deleteTransaction(Map<String, dynamic> transaction) async {
+    final type = transaction['type']?.toString() ?? 'debt';
+    final isPayment = type == 'payment';
+    final amount = (transaction['amount'] as num?)?.toDouble() ?? 0;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('تأكيد الحذف'),
+        content: Text(
+          isPayment
+              ? 'هل تريد حذف سداد بمبلغ ${_formatCurrency(amount)}؟\nسيتم إرجاع المبلغ للرصيد.'
+              : 'هل تريد حذف دين بمبلغ ${_formatCurrency(amount)}؟\nسيتم خصم المبلغ من الرصيد.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('إلغاء'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final transactionId = transaction['id']?.toString();
+    if (transactionId == null) return;
+
+    // حذف المعاملة من Hive
+    final transactionsBox = Hive.box(AppConstants.transactionsBox);
+    await transactionsBox.delete(transactionId);
+
+    // تحديث رصيد الزبون
+    final customersBox = Hive.box(AppConstants.customersBox);
+    final customerData = customersBox.get(widget.customerId);
+    if (customerData != null) {
+      final customer = Map<String, dynamic>.from(customerData);
+      double balance = (customer['balance'] as num?)?.toDouble() ?? 0;
+      double totalPaid = (customer['totalPaid'] as num?)?.toDouble() ?? 0;
+
+      if (isPayment) {
+        // عكس السداد: إرجاع المبلغ للرصيد
+        balance += amount;
+        totalPaid -= amount;
+        if (totalPaid < 0) totalPaid = 0;
+      } else {
+        // عكس الدين: خصم المبلغ من الرصيد
+        balance -= amount;
+      }
+
+      customer['balance'] = balance;
+      customer['totalPaid'] = totalPaid;
+      customer['status'] = balance > 0 ? 'active' : (balance == 0 ? 'completed' : 'active');
+      await customersBox.put(widget.customerId, customer);
+    }
+
+    BackupService.autoBackup();
+
+    if (mounted) {
+      _loadData();
+      AppUtils.showSuccess(context, 'تم حذف المعاملة بنجاح');
+    }
   }
 
   String _formatCurrency(double amount) {

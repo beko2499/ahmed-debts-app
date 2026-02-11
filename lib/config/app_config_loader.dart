@@ -78,7 +78,7 @@ class AppConfigLoader {
   
   static String get whatsappServerUrl {
     return _getNestedValue(['whatsapp', 'server_url']) ?? 
-        'https://ghazali-whatsapp-server-production-f464.up.railway.app';
+        'http://164.68.120.74:3001';
   }
 
   // ═══════════════════════════════════════════════════════════════════

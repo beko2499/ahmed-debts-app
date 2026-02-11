@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../config/theme.dart';
 import '../../config/constants.dart';
@@ -186,8 +186,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       try {
         // تسجيل الخروج من Google
         await GoogleSignIn().signOut();
-        // تسجيل الخروج من Firebase
-        await FirebaseAuth.instance.signOut();
       } catch (e) {
         debugPrint('Error signing out: $e');
       }
@@ -195,10 +193,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final box = Hive.box(AppConstants.settingsBox);
       await box.put(AppConstants.keyIsFirstLaunch, true);
       
-      // مسح جميع الشاشات والذهاب لشاشة تسجيل الدخول
+      // مسح جميع الشاشات والذهاب لشاشة الإعداد
       if (mounted) {
         Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
-          AppRoutes.login, 
+          AppRoutes.setup, 
           (route) => false,
         );
       }

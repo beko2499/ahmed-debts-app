@@ -45,6 +45,9 @@ class MonthlyReminderService {
     final phone = customer['phone']?.toString() ?? '';
     final name = customer['name']?.toString() ?? '';
     final dueAmount = getMonthlyPayment(customer);
+    final installmentMonths = (customer['installmentMonths'] as num?)?.toInt() ?? 12;
+    final paidCount = (customer['paidInstallmentsCount'] as num?)?.toInt() ?? 0;
+    final remainingMonths = installmentMonths - paidCount;
 
     if (phone.isEmpty) return false;
 
@@ -52,6 +55,7 @@ class MonthlyReminderService {
       phoneNumber: phone,
       customerName: name,
       dueAmount: dueAmount,
+      remainingMonths: remainingMonths > 0 ? remainingMonths : 0,
     );
   }
 

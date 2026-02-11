@@ -3,8 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+
 
 import 'config/theme.dart';
 import 'config/routes.dart';
@@ -19,10 +18,7 @@ void main() async {
   // ⭐ تحميل الإعدادات من app_config.yaml
   await AppConfigLoader.load();
   
-  // تهيئة Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+
   
   // إعداد Hive للتخزين المحلي
   await Hive.initFlutter();
