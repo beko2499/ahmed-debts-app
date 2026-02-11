@@ -339,6 +339,78 @@ class WhatsAppService {
     return sendMessage(phoneNumber: phoneNumber, message: message);
   }
 
+  /// 6️⃣ إشعار تعديل معاملة
+  Future<bool> sendTransactionEditNotification({
+    required String phoneNumber,
+    required String customerName,
+    required double oldAmount,
+    required double newAmount,
+    required double currentBalance,
+  }) async {
+    final box = await Hive.openBox(AppConstants.settingsBox);
+    
+    final isEnabled = box.get('notification_transaction_edit_enabled', defaultValue: true);
+    if (!isEnabled) return false;
+    
+    String template = box.get('notification_transaction_edit_template', 
+      defaultValue: '''📝 تم تعديل معاملة
+
+عزيزي {اسم_الزبون}،
+
+• المبلغ السابق: {المبلغ_القديم}
+• المبلغ الجديد: {المبلغ_الجديد}
+• الرصيد الحالي: {الرصيد_الحالي}
+• التاريخ: {التاريخ}
+
+شكراً لتعاملك معنا 💙''');
+
+    final message = _processTemplate(template, {
+      '{اسم_الزبون}': customerName,
+      '{المبلغ_القديم}': _formatCurrency(oldAmount),
+      '{المبلغ_الجديد}': _formatCurrency(newAmount),
+      '{الرصيد_الحالي}': _formatCurrency(currentBalance),
+      '{التاريخ}': _formatDate(DateTime.now()),
+    });
+
+    return sendMessage(phoneNumber: phoneNumber, message: message);
+  }
+
+  /// 7️⃣ إشعار حذف معاملة
+  Future<bool> sendTransactionDeleteNotification({
+    required String phoneNumber,
+    required String customerName,
+    required double deletedAmount,
+    required String transactionType,
+    required double currentBalance,
+  }) async {
+    final box = await Hive.openBox(AppConstants.settingsBox);
+    
+    final isEnabled = box.get('notification_transaction_delete_enabled', defaultValue: true);
+    if (!isEnabled) return false;
+    
+    String template = box.get('notification_transaction_delete_template', 
+      defaultValue: '''🗑️ تم حذف معاملة
+
+عزيزي {اسم_الزبون}،
+
+• نوع المعاملة: {نوع_المعاملة}
+• المبلغ: {المبلغ_المحذوف}
+• الرصيد الحالي: {الرصيد_الحالي}
+• التاريخ: {التاريخ}
+
+شكراً لتعاملك معنا 💙''');
+
+    final message = _processTemplate(template, {
+      '{اسم_الزبون}': customerName,
+      '{المبلغ_المحذوف}': _formatCurrency(deletedAmount),
+      '{نوع_المعاملة}': transactionType,
+      '{الرصيد_الحالي}': _formatCurrency(currentBalance),
+      '{التاريخ}': _formatDate(DateTime.now()),
+    });
+
+    return sendMessage(phoneNumber: phoneNumber, message: message);
+  }
+
   // --- Accessibility Methods (Fallback) ---
   
   Future<bool> isAccessibilityEnabled() async {

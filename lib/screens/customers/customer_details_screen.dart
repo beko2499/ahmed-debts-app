@@ -1528,9 +1528,6 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
               final transactionId = transaction['id']?.toString();
               if (transactionId == null) return;
 
-              // حساب الفرق
-              final difference = newAmount - oldAmount;
-
               // تحديث المعاملة في Hive
               final transactionsBox = Hive.box(AppConstants.transactionsBox);
               final updatedTransaction = Map<String, dynamic>.from(transaction);
@@ -1538,30 +1535,24 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
               updatedTransaction['notes'] = notesController.text.trim();
               await transactionsBox.put(transactionId, updatedTransaction);
 
-              // تحديث رصيد الزبون
-              final customersBox = Hive.box(AppConstants.customersBox);
-              final customerData = customersBox.get(widget.customerId);
-              if (customerData != null) {
-                final customer = Map<String, dynamic>.from(customerData);
-                double balance = (customer['balance'] as num?)?.toDouble() ?? 0;
-                double totalPaid = (customer['totalPaid'] as num?)?.toDouble() ?? 0;
-
-                if (isPayment) {
-                  // سداد: الفرق ينقص من الرصيد
-                  balance -= difference;
-                  totalPaid += difference;
-                } else {
-                  // دين: الفرق يزيد الرصيد
-                  balance += difference;
-                }
-
-                customer['balance'] = balance;
-                customer['totalPaid'] = totalPaid;
-                customer['status'] = balance > 0 ? 'active' : (balance == 0 ? 'completed' : 'active');
-                await customersBox.put(widget.customerId, customer);
-              }
+              // إعادة حساب الرصيد والأقساط من الصفر
+              await _recalculateCustomerData();
 
               BackupService.autoBackup();
+
+              // إرسال إشعار واتساب بالتعديل
+              final phone = _customer['phone']?.toString() ?? '';
+              if (phone.isNotEmpty) {
+                final updatedCustomer = Hive.box(AppConstants.customersBox).get(widget.customerId);
+                final newBalance = (updatedCustomer?['balance'] as num?)?.toDouble() ?? 0;
+                WhatsAppService().sendTransactionEditNotification(
+                  phoneNumber: phone,
+                  customerName: _customer['name']?.toString() ?? '',
+                  oldAmount: oldAmount,
+                  newAmount: newAmount,
+                  currentBalance: newBalance,
+                );
+              }
 
               if (mounted) {
                 Navigator.pop(context);
@@ -1615,36 +1606,115 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     final transactionsBox = Hive.box(AppConstants.transactionsBox);
     await transactionsBox.delete(transactionId);
 
-    // تحديث رصيد الزبون
-    final customersBox = Hive.box(AppConstants.customersBox);
-    final customerData = customersBox.get(widget.customerId);
-    if (customerData != null) {
-      final customer = Map<String, dynamic>.from(customerData);
-      double balance = (customer['balance'] as num?)?.toDouble() ?? 0;
-      double totalPaid = (customer['totalPaid'] as num?)?.toDouble() ?? 0;
-
-      if (isPayment) {
-        // عكس السداد: إرجاع المبلغ للرصيد
-        balance += amount;
-        totalPaid -= amount;
-        if (totalPaid < 0) totalPaid = 0;
-      } else {
-        // عكس الدين: خصم المبلغ من الرصيد
-        balance -= amount;
-      }
-
-      customer['balance'] = balance;
-      customer['totalPaid'] = totalPaid;
-      customer['status'] = balance > 0 ? 'active' : (balance == 0 ? 'completed' : 'active');
-      await customersBox.put(widget.customerId, customer);
-    }
+    // إعادة حساب الرصيد والأقساط من الصفر
+    await _recalculateCustomerData();
 
     BackupService.autoBackup();
+
+    // إرسال إشعار واتساب بالحذف
+    final phone = _customer['phone']?.toString() ?? '';
+    if (phone.isNotEmpty) {
+      final updatedCustomer = Hive.box(AppConstants.customersBox).get(widget.customerId);
+      final newBalance = (updatedCustomer?['balance'] as num?)?.toDouble() ?? 0;
+      WhatsAppService().sendTransactionDeleteNotification(
+        phoneNumber: phone,
+        customerName: _customer['name']?.toString() ?? '',
+        deletedAmount: amount,
+        transactionType: isPayment ? 'سداد' : 'دين',
+        currentBalance: newBalance,
+      );
+    }
 
     if (mounted) {
       _loadData();
       AppUtils.showSuccess(context, 'تم حذف المعاملة بنجاح');
     }
+  }
+
+  /// إعادة حساب بيانات الزبون (الرصيد + الأقساط) من الصفر بناءً على جميع المعاملات
+  Future<void> _recalculateCustomerData() async {
+    final customersBox = Hive.box(AppConstants.customersBox);
+    final transactionsBox = Hive.box(AppConstants.transactionsBox);
+    
+    final customerData = customersBox.get(widget.customerId);
+    if (customerData == null) return;
+    
+    final customer = Map<String, dynamic>.from(customerData);
+    final installmentMonths = (customer['installmentMonths'] as num?)?.toInt() ?? 12;
+    
+    // تحميل الأقساط الذكية المحفوظة
+    List<double> smartInstallments = (customer['smartInstallments'] as List<dynamic>?)
+        ?.map((e) => (e as num).toDouble()).toList() ?? [];
+    
+    // جلب جميع معاملات هذا الزبون مرتبة بالتاريخ (الأقدم أولاً)
+    final allTransactions = transactionsBox.values
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .where((t) => t['customerId'] == widget.customerId)
+        .toList();
+    allTransactions.sort((a, b) {
+      final dateA = DateTime.tryParse(a['createdAt'] ?? '') ?? DateTime.now();
+      final dateB = DateTime.tryParse(b['createdAt'] ?? '') ?? DateTime.now();
+      return dateA.compareTo(dateB); // الأقدم أولاً
+    });
+    
+    // الدين الأصلي (غير مخزن كمعاملة، مخزن مباشرة في بيانات الزبون)
+    final originalDebt = (customer['originalDebt'] as num?)?.toDouble() ?? 0;
+    
+    // إعادة حساب الرصيد والأقساط - البدء من الدين الأصلي
+    double balance = originalDebt;
+    double totalPaid = 0;
+    int paidInstallmentsCount = 0;
+    double currentInstallmentPaid = 0;
+    List<double> paidInstallmentAmounts = [];
+    
+    for (final tx in allTransactions) {
+      final type = tx['type']?.toString() ?? 'debt';
+      final amount = (tx['amount'] as num?)?.toDouble() ?? 0;
+      
+      if (type == 'payment') {
+        balance -= amount;
+        totalPaid += amount;
+        
+        // حساب الأقساط المكتملة
+        currentInstallmentPaid += amount;
+        
+        double currentMonthlyPayment;
+        if (smartInstallments.isNotEmpty && paidInstallmentsCount < smartInstallments.length) {
+          currentMonthlyPayment = smartInstallments[paidInstallmentsCount];
+        } else if (installmentMonths - paidInstallmentsCount > 0) {
+          currentMonthlyPayment = (balance + amount) / (installmentMonths - paidInstallmentsCount);
+        } else {
+          currentMonthlyPayment = amount;
+        }
+        
+        const tolerance = 1.0;
+        while ((currentInstallmentPaid + tolerance) >= currentMonthlyPayment && paidInstallmentsCount < installmentMonths) {
+          paidInstallmentAmounts.add(currentMonthlyPayment);
+          currentInstallmentPaid -= currentMonthlyPayment;
+          if (currentInstallmentPaid < 0 && currentInstallmentPaid > -tolerance) {
+            currentInstallmentPaid = 0;
+          }
+          paidInstallmentsCount++;
+          
+          if (smartInstallments.isNotEmpty && paidInstallmentsCount < smartInstallments.length) {
+            currentMonthlyPayment = smartInstallments[paidInstallmentsCount];
+          }
+        }
+      } else if (type == 'debt') {
+        // ديون إضافية فقط (الدين الأصلي محسوب بالفعل)
+        balance += amount;
+      }
+      // نتجاهل نوع 'opening' لأن الدين الأصلي محسوب من originalDebt
+    }
+    
+    // تحديث بيانات الزبون
+    customer['balance'] = balance;
+    customer['totalPaid'] = totalPaid;
+    customer['paidInstallmentsCount'] = paidInstallmentsCount;
+    customer['currentInstallmentPaid'] = currentInstallmentPaid;
+    customer['paidInstallmentAmounts'] = paidInstallmentAmounts;
+    customer['status'] = balance > 0 ? 'active' : (balance == 0 ? 'completed' : 'active');
+    await customersBox.put(widget.customerId, customer);
   }
 
   String _formatCurrency(double amount) {
